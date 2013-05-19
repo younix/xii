@@ -72,7 +72,6 @@ output(Widget input, XtPointer fd, XEvent *ev, Boolean *dispatch)
 		XtSetArg(args[0], XtNstring, &str);
 		XtGetValues(input, args, 1);
 		write(*(int*)fd, str, strlen(str));
-		printf("output: %s", str);
 
 		XtVaSetValues(input, XtNstring, "", NULL);
 		*dispatch = FALSE;
@@ -114,10 +113,8 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 2) {
-		fprintf(stderr, "usage: xii <out> <in>\n");
-		return EXIT_FAILURE;
-	}
+	if (argc < 2)
+		usage();
 
 	char *outFileName = argv[0];
 	char *inFileName = argv[1];
@@ -133,9 +130,6 @@ main(int argc, char **argv)
 
 	Widget box = XtCreateManagedWidget("form", panedWidgetClass, toplevel,
 	    args, i);
-
-	if (parent != 0)
-		XReparentWindow(XtDisplay(box), XtWindow(box), parent, 0, 0);
 
 	/* create input field */
 	i = 0;
@@ -173,6 +167,12 @@ main(int argc, char **argv)
 	XtAppAddTimeOut(app_con, 100, file_input, &content);
 
 	XtRealizeWidget(toplevel);
+
+	printf("window: %d\n", XtWindow(box));
+
+	if (parent != 0)
+		XReparentWindow(XtDisplay(box), XtWindow(box), parent, 0, 0);
+
 	XtAppMainLoop(app_con);
 
 	return EXIT_SUCCESS;
