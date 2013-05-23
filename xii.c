@@ -39,6 +39,13 @@ struct content {
 	int fd;
 };
 
+
+static void
+Fokus(Widget w, XEvent *ev, String *str, Cardinal *car)
+{
+	printf("FOKUS_IN\n");
+}
+
 void
 file_input(XtPointer data, XtIntervalId *id)
 {
@@ -53,8 +60,19 @@ file_input(XtPointer data, XtIntervalId *id)
 			perror("realloc");
 		strncat(content->data, buf, size);
 		XtVaSetValues(content->output,XtNstring, content->data, NULL);
-		XtVaSetValues(content->output, XtNinsertPosition,
-		    strlen(content->data), NULL);
+
+
+		XtCallActionProc(content->output, "end-of-file",
+		    NULL, NULL, 0);
+
+//		XawTextScroll(content->output, 10, 0);
+
+//		for (int i = 0; i < 100; i++)
+//			XtCallActionProc(content->output,
+//			    "scroll-one-line-down", NULL, NULL, 0);
+
+//		XtVaSetValues(content->output, XtNinsertPosition,
+//		    strlen(content->data), NULL);
 	}
 
 	if (size == -1)
@@ -65,15 +83,22 @@ file_input(XtPointer data, XtIntervalId *id)
 }
 
 void
-output(Widget input, XtPointer fd, XEvent *ev, Boolean *dispatch)
+output(Widget input, XtPointer in_file, XEvent *ev, Boolean *dispatch)
 {
 	Arg args[1];
 	char *str = NULL;
+	int fd;
 
 	if (XLookupKeysym(&ev->xkey, 0) == XK_Return) {
 		XtSetArg(args[0], XtNstring, &str);
 		XtGetValues(input, args, 1);
-		write(*(int*)fd, str, strlen(str));
+
+		if ((fd = open((char*)in_file, O_WRONLY)) < 0)
+			perror("open");
+
+		write(fd, str, strlen(str));
+
+		close(fd);
 
 		XtVaSetValues(input, XtNstring, "", NULL);
 		*dispatch = FALSE;
@@ -83,7 +108,8 @@ output(Widget input, XtPointer fd, XEvent *ev, Boolean *dispatch)
 void
 usage(void)
 {
-	fprintf(stderr, "xii [-t <title>] [-e <window>] <out> <in>\n");
+	fprintf(stderr,
+	    "xii [-t <title>] [-e <window>] [-o <out>] [-i <in>]\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -95,8 +121,10 @@ main(int argc, char **argv)
 	Window parent = 0;
 	int ch ;
 	char *title = "xii";
+	char *out_file = "out";
+	char *in_file = "in";
 
-	while ((ch = getopt(argc, argv, "e:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "i:o:e:t:")) != -1) {
 		switch (ch) {
 		case 'e':
 			errno = 0;
@@ -107,25 +135,32 @@ main(int argc, char **argv)
 		case 't':
 			title = strdup(optarg);
 			break;
+		case 'o':
+			out_file = strdup(optarg);
+			break;
+		case 'i':
+			in_file = strdup(optarg);
+			break;
 		default:
 			usage();
 			/* NOTREACHED */
 		}
 	}
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 2)
-		usage();
-
-	char *outFileName = argv[0];
-	char *inFileName = argv[1];
 
 	/* set locale */
 	XtSetLanguageProc(NULL, NULL, NULL);
 
 	Widget toplevel = XtAppInitialize(&app_con, title, NULL, ZERO, &argc,
 	    argv, NULL, NULL, ZERO);
+
+//	XtActionsRec actions[] = {
+//		{"Fokus", Fokus},
+//	};
+
+//	XtAddActions(actions, XtNumber(actions));
+
+//	XtOverrideTranslations(toplevel,
+//	    XtParseTranslationTable("<Message>XEMBED_FOCUS_IN: Fokus()"));
 
 	int i = 0;
 	Arg args[10];
@@ -151,17 +186,18 @@ main(int argc, char **argv)
 	XtSetArg(args[i], XtNskipAdjust,	TRUE);			i++;
 
 	Widget input = XtCreateManagedWidget("input", asciiTextWidgetClass,
-				box, args, i);
+	    box, args, i);
+
+	/* don't do new-line on return */
+//	XtOverrideTranslations(input,
+//	    XtParseTranslationTable("<Key>Return: Nothing()"));
 
 	/* handle input file */
-	int out_fd;
-	if ((out_fd = open(inFileName, O_WRONLY)) < 0)
-		perror("open");
 
-	XtAddEventHandler(input, KeyReleaseMask, TRUE, output, &out_fd);
+	XtAddEventHandler(input, KeyReleaseMask, TRUE, output, in_file);
 
 	/* handel output file */
-	if ((content.fd = open(outFileName, O_RDONLY)) < 0)
+	if ((content.fd = open(out_file, O_RDONLY)) < 0)
 		perror("open");
 	content.size = 1;
 	content.data = calloc(1, content.size);
@@ -169,11 +205,12 @@ main(int argc, char **argv)
 	XtAppAddTimeOut(app_con, 100, file_input, &content);
 
 	XtRealizeWidget(toplevel);
+	XtSetKeyboardFocus(toplevel, input);
 
-	printf("window: %d\n", XtWindow(box));
 
 	if (parent != 0)
-		XReparentWindow(XtDisplay(box), XtWindow(box), parent, 0, 0);
+		XReparentWindow(XtDisplay(toplevel), XtWindow(toplevel), parent,
+		    0, 0);
 
 	XtAppMainLoop(app_con);
 
