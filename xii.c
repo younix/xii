@@ -105,6 +105,14 @@ output(Widget input, XtPointer in_file, XEvent *ev, Boolean *dispatch)
 	}
 }
 
+static int
+error_handler(Display *display, XErrorEvent *error)
+{
+	printf("error: %d\n", error->error_code);
+
+	return 0;
+}
+
 void
 usage(void)
 {
@@ -124,7 +132,7 @@ main(int argc, char **argv)
 	char *out_file = "out";
 	char *in_file = "in";
 
-	while ((ch = getopt(argc, argv, "i:o:e:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "hi:o:e:t:")) != -1) {
 		switch (ch) {
 		case 'e':
 			errno = 0;
@@ -141,6 +149,7 @@ main(int argc, char **argv)
 		case 'i':
 			in_file = strdup(optarg);
 			break;
+		case 'h':
 		default:
 			usage();
 			/* NOTREACHED */
@@ -195,6 +204,7 @@ main(int argc, char **argv)
 	/* handle input file */
 
 	XtAddEventHandler(input, KeyReleaseMask, TRUE, output, in_file);
+	XSetErrorHandler(error_handler);
 
 	/* handel output file */
 	if ((content.fd = open(out_file, O_RDONLY)) < 0)
@@ -206,7 +216,6 @@ main(int argc, char **argv)
 
 	XtRealizeWidget(toplevel);
 	XtSetKeyboardFocus(toplevel, input);
-
 
 	if (parent != 0)
 		XReparentWindow(XtDisplay(toplevel), XtWindow(toplevel), parent,
