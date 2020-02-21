@@ -40,7 +40,7 @@ struct content {
 };
 
 
-static void
+void
 Fokus(Widget w, XEvent *ev, String *str, Cardinal *car)
 {
 	printf("FOKUS_IN\n");
@@ -62,8 +62,8 @@ file_input(XtPointer data, XtIntervalId *id)
 		XtVaSetValues(content->output,XtNstring, content->data, NULL);
 
 
-		XtCallActionProc(content->output, "end-of-file",
-		    NULL, NULL, 0);
+//		XtCallActionProc(content->output, "end-of-file",
+//		    NULL, NULL, 0);
 
 //		XawTextScroll(content->output, 10, 0);
 
@@ -73,6 +73,8 @@ file_input(XtPointer data, XtIntervalId *id)
 
 //		XtVaSetValues(content->output, XtNinsertPosition,
 //		    strlen(content->data), NULL);
+
+		XtVaSetValues(content->output, XtNdisplayPosition, 100, NULL);
 	}
 
 	if (size == -1)
@@ -87,14 +89,15 @@ output(Widget input, XtPointer in_file, XEvent *ev, Boolean *dispatch)
 {
 	Arg args[1];
 	char *str = NULL;
-	int fd;
+	int fd = STDIN_FILENO;
 
 	if (XLookupKeysym(&ev->xkey, 0) == XK_Return) {
 		XtSetArg(args[0], XtNstring, &str);
 		XtGetValues(input, args, 1);
 
-		if ((fd = open((char*)in_file, O_WRONLY)) < 0)
-			perror("open");
+		if (strcmp((char*)in_file, "-") != 0)
+			if ((fd = open((char*)in_file, O_WRONLY)) < 0)
+				perror("open");
 
 		write(fd, str, strlen(str));
 
@@ -117,7 +120,7 @@ void
 usage(void)
 {
 	fprintf(stderr,
-	    "xii [-t <title>] [-e <window>] [-o <out>] [-i <in>]\n");
+	    "xii [-t <title>] [-e <window>] [-d <dir>] [-o <out>] [-i <in>]\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -172,19 +175,21 @@ main(int argc, char **argv)
 //	    XtParseTranslationTable("<Message>XEMBED_FOCUS_IN: Fokus()"));
 
 	int i = 0;
-	Arg args[10];
+	Arg args[20];
 
 	Widget box = XtCreateManagedWidget("form", panedWidgetClass, toplevel,
 	    args, i);
 
-	/* create input field */
+	/* create output field */
 	i = 0;
 	XtSetArg(args[i], XtNtype,		XawAsciiString);	i++;
+	XtSetArg(args[i], XtNeditType,		XawtextRead);		i++;
 	XtSetArg(args[i], XtNshowGrip,		FALSE);			i++;
-	XtSetArg(args[i], XtNskipAdjust,	FALSE);			i++;
+//	XtSetArg(args[i], XtNskipAdjust,	FALSE);			i++;
 	XtSetArg(args[i], XtNwrap,		XawtextWrapLine);	i++;
-	XtSetArg(args[i], XtNscrollHorizontal,	XawtextScrollNever);	i++;
-	XtSetArg(args[i], XtNscrollVertical,	XawtextScrollNever);	i++;
+//	XtSetArg(args[i], XtNscrollHorizontal,	XawtextScrollNever);	i++;
+	XtSetArg(args[i], XtNscrollHorizontal,	XawtextScrollWhenNeeded); i++;
+	XtSetArg(args[i], XtNscrollVertical,	XawtextScrollWhenNeeded); i++;
 
 	content.output = XtCreateManagedWidget("output", asciiTextWidgetClass,
 	    box, args, i);
